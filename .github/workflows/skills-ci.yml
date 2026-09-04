@@ -1,0 +1,48 @@
+name: skills-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [stable]
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-index:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Validate skills
+        run: python scripts/validate_skills.py
+
+      - name: Build index
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          SOURCE_BRANCH: ${{ github.ref_name }}
+        run: python scripts/build_index.py
+
+      - name: Ensure index is current on main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          if ! git diff --quiet -- generated/index.json; then
+            echo "generated/index.json differs from committed copy; committing refresh"
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add generated/index.json
+            git commit -m "chore: refresh generated/index.json [skip ci]"
+            git push
+          else
+            echo "generated/index.json is up to date"
+          fi

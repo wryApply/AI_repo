@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "source_branch": "main",
+  "source_commit": "PLACEHOLDER",
+  "skills": [
+    {
+      "name": "teach",
+      "description": "Teach a topic through a stateful, goal-oriented course that adapts to the learner while maintaining a clear curriculum and avoiding unnecessary detours, repetition, or over-fragmentation. Use when the user wants structured learning across one or more sessions.",
+      "priority": 50,
+      "root": "skills/teach",
+      "platforms": {
+        "codex": "full",
+        "chatgpt": "full",
+        "grok": "partial",
+        "grok_bot": "full"
+      },
+      "capabilities": {
+        "scripts": "optional",
+        "files": "optional"
+      }
+    }
+  ]
+}
