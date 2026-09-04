@@ -4,27 +4,34 @@ Thin adapter over [`../common/PROTOCOL.md`](../common/PROTOCOL.md).
 
 ## Runtime shape
 
-Grok Bot has a persistent VM/filesystem/terminal—same pattern as Codex:
-
 ```text
 ~/agent-skills/
-  current/
-  staging/
-  state.json
+  update.py      # run this on 「更新 skills」
+  current/       # active snapshot (skills/, generated/, …)
+  staging/       # ephemeral; removed after promote
+  state.json     # source_commit, skill_count, skills, updated_at
 ```
 
 ## Update path (MVP)
 
-On **更新 skills**:
+On **更新 skills** (aliases: 同步/刷新/reload/update skills):
 
-1. Fetch public `stable` ZIP (or raw `stable` tree) for `wryApply/AI_repo`.
-2. Stage → validate → atomic promote to `current`.
-3. Failure keeps the previous snapshot.
+```bash
+python3 ~/agent-skills/update.py
+```
+
+The script:
+
+1. Downloads the public `stable` ZIP of `wryApply/AI_repo`
+2. Validates `generated/index.json` and each listed Skill's `SKILL.md`
+3. Atomically promotes staging → `current` (keeps previous on failure)
+4. Writes `state.json`
 
 ## Ordinary requests
 
-Use `~/agent-skills/current/` only. Do not register synced Skills into Grok Bot’s native Skill system in MVP.
+Use `~/agent-skills/current/` only. Do not hit GitHub. Do not register synced Skills into Grok Bot's native skill library in MVP (native install is optional/manual).
 
 ## Notes
 
-- Filesystem capabilities available; do not self-update the loader.
+- Loaders do not self-update.
+- Script source of truth in-repo: `loaders/grok-bot/update.py` (copy to `~/agent-skills/update.py` on a new box).
