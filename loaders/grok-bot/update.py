@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Grok Bot skills updater: pull wryApply/AI_repo@stable into ~/agent-skills atomically."""
+"""Grok Bot skills updater: pull wryApply/AI_repo@stable, then install into native workflows/."""
 from __future__ import annotations
 
 import json
@@ -18,7 +18,20 @@ ROOT = Path(os.environ.get("AGENT_SKILLS_ROOT", Path.home() / "agent-skills")).e
 CURRENT = ROOT / "current"
 STAGING = ROOT / "staging"
 STATE = ROOT / "state.json"
+WORKFLOWS = Path(
+    os.environ.get(
+        "AGENT_SKILLS_WORKFLOWS",
+        Path.home() / "agent-data" / "workflows",
+    )
+).expanduser()
 ZIP_URL = f"https://codeload.github.com/{REPO}/zip/refs/heads/{BRANCH}"
+
+# Never overwrite these local-only skill folders even if names collide.
+PROTECTED = {
+    "update-agent-skills",
+    "update-agent-skills-2",
+    "understand-a-concept",
+}
 
 
 def die(msg: str, code: int = 1) -> None:
@@ -60,13 +73,11 @@ def validate(tree: Path) -> dict:
         skill_md = tree / root / "SKILL.md"
         if not skill_md.is_file():
             die(f"missing SKILL.md for {name}: {skill_md}")
-    # Also accept empty catalog (scaffold-only) if index exists
     return index
 
 
 def atomic_promote(extracted: Path) -> None:
     ROOT.mkdir(parents=True, exist_ok=True)
-    # Replace STAGING with clean extracted tree content at STAGING
     if STAGING.exists():
         shutil.rmtree(STAGING)
     shutil.copytree(extracted, STAGING)
@@ -78,7 +89,6 @@ def atomic_promote(extracted: Path) -> None:
     try:
         STAGING.rename(CURRENT)
     except Exception:
-        # rollback
         if backup.exists() and not CURRENT.exists():
             backup.rename(CURRENT)
         raise
@@ -88,7 +98,31 @@ def atomic_promote(extracted: Path) -> None:
         shutil.rmtree(STAGING)
 
 
-def write_state(index: dict, commit: str | None) -> None:
+def install_native(index: dict) -> list[str]:
+    """Copy each catalog skill into shared workflows/. Only touch skills listed in the index."""
+    WORKFLOWS.mkdir(parents=True, exist_ok=True)
+    installed: list[str] = []
+    for entry in index.get("skills") or []:
+        name = entry.get("name")
+        if not name:
+            continue
+        if name in PROTECTED:
+            print(f"SKIP native install (protected): {name}")
+            continue
+        root = entry.get("root") or f"skills/{name}"
+        src = CURRENT / root
+        if not (src / "SKILL.md").is_file():
+            die(f"cannot install {name}: missing {src / 'SKILL.md'}")
+        dest = WORKFLOWS / name
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(src, dest)
+        installed.append(name)
+        print(f"INSTALLED native: {dest}")
+    return installed
+
+
+def write_state(index: dict, commit: str | None, installed: list[str]) -> None:
     skills = index.get("skills") or []
     state = {
         "repo": REPO,
@@ -96,6 +130,8 @@ def write_state(index: dict, commit: str | None) -> None:
         "source_commit": commit or index.get("source_commit"),
         "skill_count": len(skills),
         "skills": [s.get("name") for s in skills if s.get("name")],
+        "native_installed": installed,
+        "native_workflows": str(WORKFLOWS),
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     STATE.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -113,17 +149,24 @@ def main() -> None:
             extracted = extract_zip(zip_path, tmp_path / "unpack")
             index = validate(extracted)
             commit = index.get("source_commit")
-            # Prefer SHA from GitHub API if index placeholder
             try:
                 api = f"https://api.github.com/repos/{REPO}/commits/{BRANCH}"
-                req = urllib.request.Request(api, headers={"User-Agent": "grok-bot-skills-loader", "Accept": "application/vnd.github+json"})
+                req = urllib.request.Request(
+                    api,
+                    headers={
+                        "User-Agent": "grok-bot-skills-loader",
+                        "Accept": "application/vnd.github+json",
+                    },
+                )
                 with urllib.request.urlopen(req, timeout=60) as resp:
                     commit = json.loads(resp.read().decode()).get("sha") or commit
             except Exception as e:
                 print(f"WARN: could not resolve tip SHA via API ({e}); using index source_commit")
             atomic_promote(extracted)
-            write_state(index, commit)
+            installed = install_native(index)
+            write_state(index, commit, installed)
             print(f"OK: current={CURRENT}")
+            print(f"OK: native_workflows={WORKFLOWS} installed={installed}")
         except SystemExit:
             if STAGING.exists():
                 shutil.rmtree(STAGING, ignore_errors=True)
