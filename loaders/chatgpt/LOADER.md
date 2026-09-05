@@ -29,3 +29,7 @@ Use the session snapshot only; no GitHub access.
 
 - Skill Markdown bodies stay unchanged if a better mobile adapter appears later.
 - Loader does not self-update.
+
+## ChatGPT Skills frontmatter
+
+ChatGPT Skills save rejects unknown frontmatter keys such as `platforms`, `capabilities`, and `priority` (HTTP 422). The loader Skill must strip those before create/replace.
