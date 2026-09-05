@@ -4,22 +4,26 @@ Thin adapter over [`../common/PROTOCOL.md`](../common/PROTOCOL.md).
 
 ## Runtime shape
 
-Session-oriented, similar to ChatGPT: persist if the product allows; otherwise hold Skills in the **current session snapshot**.
+Grok.com Personal Skills (no local disk). Catalog sync is user-triggered only.
 
-## Update path (MVP)
+## Install once
 
-On **更新 skills**:
+Add Personal Skill from [`update-agent-skills.SKILL.md`](./update-agent-skills.SKILL.md) (Name: `update-agent-skills`).
 
-1. Read public `stable/generated/index.json` (raw URL on branch `stable`).
-2. Pull relevant `SKILL.md` files for this session.
-3. Stage in session memory/buffer, validate minimally, then swap the session snapshot.
-4. Failure keeps the old snapshot.
+## Update path
+
+On **更新 skills** (aliases: 同步/刷新/reload/update skills):
+
+1. Fetch public `https://raw.githubusercontent.com/wryApply/AI_repo/stable/generated/index.json`
+2. Fetch each `skills/.../SKILL.md`
+3. Stage → validate → replace matching Personal Skills
+4. Failure keeps prior Personal Skills
 
 ## Ordinary requests
 
-Use the session snapshot; do not contact GitHub.
+Use Personal Skills; do not contact GitHub until the next explicit update.
 
 ## Notes
 
-- Platform support for many Skills may be `partial` (limited files/scripts).
+- Many Skills are `partial` on Grok (limited files/scripts).
 - Loader does not self-update.
